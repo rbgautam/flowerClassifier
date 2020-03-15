@@ -1,10 +1,35 @@
 import torch
-# from torch import nn
-# import torch.nn.functional as F
-# from torch import optim
 from torchvision import models
 from PIL import Image
 import numpy as np
+from cli_predict_args import get_args
+import os
+def main():
+    
+    parser = get_args()
+    
+    cli_args = parser.parse_args()
+    # check for model file
+    if not os.path.isdir(cli_args.checkpoint_file):
+        print(f'Saved Model file {cli_args.checkpoint_file} was not found.')
+        exit(1)
+
+    # check for test image
+    if not os.path.isdir(cli_args.path_to_image):
+        print(f'Test Image {cli_args.path_to_image} does not exist. ')
+        exit(1)
+
+    filename = cli_args.checkpoint_file
+    inputfilename= cli_args.path_to_image #'flowers/test/10/image_07090.jpg'
+    
+    model_from_file = rebuildModel(filename)
+    print(model_from_file)
+
+    topk = cli_args.top_k
+    
+    top_probs, classes= predict(inputfilename,model_from_file,topk)
+    print(top_probs)
+    print(classes)
 
 def rebuildModel(filepath):
     
@@ -102,14 +127,7 @@ def process_image(image):
     image = image.transpose(2, 0, 1)
     
     return image
-def main():
-    filename = 'training_models/classify_model_03082020_181823.pth'
-    model_from_file = rebuildModel(filename)
-    print(model_from_file)
-    inputfilename= 'flowers/test/10/image_07090.jpg'
-    top_probs, classes= predict(inputfilename,model_from_file)
-    print(top_probs)
-    print(classes)
+
     
 if __name__ == '__main__':
     main()

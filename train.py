@@ -3,7 +3,7 @@ import json
 import time
 import os
 import random
-import Classifier
+from classifier import Classifier
 
 import seaborn as sns
 from PIL import Image
@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch import optim
 from torchvision import datasets, transforms, models
 
-from cli_args import get_args
+from cli_train_args import get_args
 
 
 
@@ -34,11 +34,36 @@ def main():
         print(f'Directory {cli_args.save_dir} does not exist. Creating...')
         os.makedirs(cli_args.save_dir)
 
-    data_dir = 'flowers'
+    data_dir = cli_args.data_directory
     train_dir = data_dir + '/train'
     valid_dir = data_dir + '/valid'
     test_dir = data_dir + '/test'
+    save_dir = cli_args.save_dir
+    lr = cli_args.learning_rate
+    model_name = cli_args.arch
+    hidden_units = cli_args.hidden_units
+    epochs = cli_args.epochs
+    gpu = cli_args.use_gpu
 
+    print("data_dir = ",data_dir,"\n,save_dir=",save_dir,"\n,lr=",lr,"\n,model_name=",model_name,"\n,hidden_units=",hidden_units,"\n,epochs=",epochs,"\n,GPU=",gpu)
+
+    if model_name == 'vgg11':
+        model = models.vgg11(pretrained=True)
+        model.name = model_name
+    
+    if model_name == 'vgg13':
+        model = models.vgg13(pretrained=True)
+        model.name = model_name
+
+    if model_name == 'vgg16':
+        model = models.vgg16(pretrained=True)
+        model.name = model_name
+        
+    trainloader,validloader,train_data = transform_train(train_dir,valid_dir)
+    read_labels()
+    run_train(model,trainloader,validloader,train_data,lr,hidden_units,epochs,gpu,save_dir)
+
+def transform_train(train_dir,valid_dir):
     # Dataset values
     image_size = 224 # Image size in pixels
     reduction = 255 # Image reduction to smaller edge 
@@ -48,14 +73,6 @@ def main():
     batch_size = 64 # Number of images used in a single pass
     shuffle = True # Randomize image selection for a batch
     
-    model_name = 'vgg16'
-    model = models.vgg16(pretrained=True)
-    model.name = model_name
-    trainloader,validloader,train_data = transform_train()
-    read_labels()
-    run_train(model,trainloader,validloader,train_data)
-
-def transform_train():
     training_transforms = transforms.Compose([transforms.RandomResizedCrop(image_size),
                                        transforms.RandomRotation(rotation),
                                        transforms.RandomHorizontalFlip(),
@@ -79,13 +96,16 @@ def read_labels():
     print(f"Images are labeled with {len(cat_to_name)} categories.")
     return cat_to_name
     
-def run_train(model,trainloader,validloader,train_data):
+def run_train(model,trainloader,validloader,train_data,lr,hidden_units,epochs,gpu,save_dir):
     input_size = 25088
     output_size = 102
-    hidden_layers = [4096, 1024]
+    hidden_layers = [hidden_units[0], 1024]
     drop_out = 0.2
-    model.classifier = Classifier.Classifier(input_size, output_size, hidden_layers, drop_out)
-    current_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.classifier = Classifier(input_size, output_size, hidden_layers, drop_out)
+    if gpu:
+        current_device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    else:
+        current_device = torch.device("cpu")
     print(current_device)
     # Define the loss function
     criterion = nn.NLLLoss()
@@ -93,15 +113,15 @@ def run_train(model,trainloader,validloader,train_data):
     # Define weights optimizer (backpropagation with gradient descent)
     # Only train the classifier parameters, feature parameters are frozen
     # Set the learning rate as lr=0.001
-    optimizer = optim.Adam(model.classifier.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.classifier.parameters(), lr=lr)
 
     # Move the network and data to GPU or CPU
     model.to(current_device)
     print(model)
     drop_out = 0.2
-    learning_rate = 0.25
+    learning_rate = lr
     optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
-    epochs_no = 1
+    epochs_no = epochs
     
     train_loss, valid_loss, valid_accuracy = trainClassifier( model, epochs_no, criterion, optimizer, trainloader,validloader, current_device)
 
@@ -109,10 +129,10 @@ def run_train(model,trainloader,validloader,train_data):
           f"Train loss: {train_loss:.3f}.. \n",
           f"Test loss: {valid_loss:.3f}.. \n",
           f"Test accuracy: {valid_accuracy:.3f}")
-    filename = saveCheckpoint(model,train_data)
+    filename = saveCheckpoint(model,train_data,save_dir)
     print(filename)
     
-def saveCheckpoint(model,train_data):
+def saveCheckpoint(model,train_data,save_dir):
     
     # Mapping of classes to indices
     model.class_to_idx = train_data.class_to_idx
@@ -127,7 +147,7 @@ def saveCheckpoint(model,train_data):
     print(model.classifier)
     # Save to a file
     timestr = time.strftime("%m%d%Y_%H%M%S")
-    file_name = 'training_models/classify_model_' + timestr + '.pth'
+    file_name = save_dir + 'classify_model_' + timestr + '.pth'
     torch.save(checkpoint, file_name)
     return file_name   
 

@@ -73,7 +73,7 @@ def main():
     """
         Main Function
     """
-    print(f'Command line argument utility for predict.py.\nTry "python train.py -h".')
+    print(f'USAGE: python ./predict.py /path/to/image.jpg checkpoint.pth')
 
 
 if __name__ == '__main__':
